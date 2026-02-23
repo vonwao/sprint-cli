@@ -476,12 +476,12 @@ run_agent() {
     CMD="claude --print"
     $YOLO && CMD="$CMD --dangerously-skip-permissions"
     
-    # Symlink AGENT.md to CLAUDE.md if needed
-    if [ -f "$AGENT_FILE" ] && [ ! -f "$PROJECT_DIR/CLAUDE.md" ]; then
-      ln -sf AGENT.md "$PROJECT_DIR/CLAUDE.md"
-      CREATED_SYMLINK=true
+    # Load AGENT.md for system prompt injection
+    local system_prompt=""
+    if [ -f "$AGENT_FILE" ]; then
+      system_prompt="$(cat "$AGENT_FILE")"
     fi
-    
+
     # Prepend guardrails + sprint context to prompt if they exist
     local full_prompt="$prompt"
     if [ -f "$PROJECT_DIR/SPRINT.md" ]; then
@@ -500,13 +500,16 @@ $full_prompt"
 
 $full_prompt"
     fi
-    
+
     echo -e "${MAGENTA}▶ Running Claude Code (non-interactive)${NC}"
     echo ""
-    $CMD "$full_prompt"
+    if [ -n "$system_prompt" ]; then
+      $CMD --append-system-prompt "$system_prompt" "$full_prompt"
+    else
+      $CMD "$full_prompt"
+    fi
     local exit_code=$?
-    
-    [ "$CREATED_SYMLINK" = "true" ] && rm -f "$PROJECT_DIR/CLAUDE.md"
+
     return $exit_code
   fi
 }
