@@ -197,8 +197,14 @@ format_duration() {
   fi
 }
 
+# Count files changed in the most recent commit
+# Returns the count (or empty string if unavailable)
+count_files_changed() {
+  git diff --name-only HEAD~1 HEAD 2>/dev/null | wc -l | tr -d ' '
+}
+
 # Append a structured progress block to PROGRESS.md
-# Usage: append_progress <task_id> <task_title> <agent> <validate_result> <commit_hash> <result> [failure_reason] [duration_secs]
+# Usage: append_progress <task_id> <task_title> <agent> <validate_result> <commit_hash> <result> [failure_reason] [duration_secs] [files_changed]
 append_progress() {
   local task_id="$1"
   local task_title="$2"
@@ -208,6 +214,7 @@ append_progress() {
   local result="$6"            # completed, failed, skipped, retried
   local failure_reason="$7"
   local duration_secs="$8"     # optional: elapsed seconds
+  local files_changed="$9"     # optional: number of files changed
   local timestamp=$(date '+%Y-%m-%d %H:%M')
   local duration_str=""
   if [ -n "$duration_secs" ] && [ "$duration_secs" -gt 0 ] 2>/dev/null; then
@@ -227,11 +234,17 @@ append_progress() {
     echo "<!-- Runner-appended progress blocks below -->" >> "$PROGRESS_FILE"
   fi
 
+  # Build files-changed suffix
+  local files_str=""
+  if [ -n "$files_changed" ] && [ "$files_changed" -gt 0 ] 2>/dev/null; then
+    files_str=" | Files: $files_changed"
+  fi
+
   # Build and append the block
   local block="
 ---
 **[$task_id]** $task_title — ${timestamp}${duration_str}
-Agent: $agent | Validate: $validate_result | Commit: ${commit_hash:-none}
+Agent: $agent | Validate: $validate_result | Commit: ${commit_hash:-none}${files_str}
 Result: $result"
 
   if [ -n "$failure_reason" ]; then
@@ -821,6 +834,12 @@ cmd_run() {
     fi
   fi
   
+  # Count files changed if there was a commit
+  local files_changed=""
+  if [ -n "$commit_hash" ]; then
+    files_changed=$(count_files_changed)
+  fi
+
   # Run validation if configured
   if [ -n "$VALIDATE_CMD" ]; then
     echo ""
@@ -828,7 +847,7 @@ cmd_run() {
     if ! eval "$VALIDATE_CMD"; then
       echo -e "${RED}❌ Validation failed${NC}"
       echo -e "${DIM}Fix the issues and run 'next done' to complete, or 'next skip' to skip.${NC}"
-      append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration"
+      append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration" "$files_changed"
       return 1
     fi
     echo -e "${GREEN}✅ Validation passed${NC}"
@@ -844,7 +863,7 @@ cmd_run() {
   mark_task_done "$TASK_ID" "$commit_hash"
   mark_done_in_tasks "$TASK_ID" "$commit_hash"
   append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
-  append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed" "" "$duration"
+  append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed" "" "$duration" "$files_changed"
 
   # Commit tracking files (state, tasks marker, log, progress)
   if git rev-parse --git-dir > /dev/null 2>&1; then
@@ -1149,10 +1168,16 @@ cmd_loop() {
       fi
     fi
     
+    # Count files changed if there was a commit
+    local files_changed=""
+    if [ -n "$commit_hash" ]; then
+      files_changed=$(count_files_changed)
+    fi
+
     # Check if agent failed (non-zero exit, no commits, no changes)
     if [ "$agent_exit" -ne 0 ] && [ -z "$commit_hash" ]; then
       failures=$((failures + 1))
-      append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "skipped" "$commit_hash" "failed" "Agent exit code: $agent_exit" "$duration"
+      append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "skipped" "$commit_hash" "failed" "Agent exit code: $agent_exit" "$duration" "$files_changed"
       echo ""
       echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
       echo -e "${RED}⚠️  Task failed (exit code: $agent_exit)${NC}"
@@ -1190,7 +1215,7 @@ cmd_loop() {
       if ! eval "$VALIDATE_CMD"; then
         failures=$((failures + 1))
         echo -e "${RED}❌ Validation failed${NC}"
-        append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration"
+        append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration" "$files_changed"
         if [ "$failures" -ge "$max_failures" ]; then
           echo -e "${RED}Too many failures. Stopping loop.${NC}"
           notify "$TASK_ID validation failed" "next-task ⚠️"
@@ -1212,11 +1237,11 @@ cmd_loop() {
     mark_task_done "$TASK_ID" "$commit_hash"
     mark_done_in_tasks "$TASK_ID" "$commit_hash"
     append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
-    append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed" "" "$duration"
+    append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed" "" "$duration" "$files_changed"
 
     echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
     notify "$TASK_ID complete"
-    
+
     # Log to CTO task-log if available
     if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
       "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null
