@@ -28,6 +28,109 @@ DEFAULT_AGENT="codex"
 YOLO=true
 VALIDATE_CMD=""
 NOTIFICATIONS=true
+FLAVOR=false
+
+#######################################
+# Flavor Text (opt-in personality)
+#######################################
+
+FLAVOR_RUN_START=(
+  "Objective acquired."
+  "One task. Let's go."
+  "Clear goal detected."
+  "Spinning up."
+  "Locked in."
+  "Spawned for a purpose."
+  "Target identified."
+)
+
+FLAVOR_TASK_DONE=(
+  "Marked complete. Nice."
+  "Short life. Finished work."
+  "Done and gone."
+  "Progress logged. Next?"
+  "Task complete. Exiting with dignity."
+  "Clean finish."
+  "One less thing."
+)
+
+FLAVOR_LOOP_START=(
+  "Working the loop."
+  "Continuous mode. No wandering."
+  "Loop engaged."
+  "No breaks until the queue is empty."
+)
+
+FLAVOR_LOOP_END=(
+  "Loop finished. Momentum preserved."
+  "Queue cleared."
+  "All objectives met."
+  "Nothing left. Good run."
+)
+
+FLAVOR_STATUS=(
+  "Here's where things stand."
+  "Current state of the loop."
+)
+
+FLAVOR_SKIP=(
+  "Skipped. No judgment."
+  "Moved past it. Onward."
+)
+
+FLAVOR_RETRY=(
+  "Going again."
+  "Round two."
+)
+
+FLAVOR_PREVIEW=(
+  "Dry run. Looking ahead."
+  "Here's what's next."
+)
+
+FLAVOR_INIT=(
+  "New loop initialized."
+)
+
+FLAVOR_COMMIT=(
+  "Checkpoint saved."
+)
+
+FLAVOR_ALL_DONE=(
+  "Nothing left. Clean exit."
+  "Queue empty. Well played."
+)
+
+FLAVOR_ERROR_NO_TASK=(
+  "No active task. Start with sprint run."
+  "Nothing in progress. Run something first."
+)
+
+FLAVOR_ERROR_VALIDATION=(
+  "Didn't pass the gate. Fix and retry."
+  "Validation says no. Check the output."
+)
+
+FLAVOR_ERROR_TOO_MANY=(
+  "Too many misses. Pausing to regroup."
+  "Hit the wall. Time to check what's wrong."
+)
+
+pick_flavor() {
+  local array_name="$1[@]"
+  local msgs=("${!array_name}")
+  local count=${#msgs[@]}
+  [ "$count" -eq 0 ] && return
+  local idx=$((RANDOM % count))
+  echo "${msgs[$idx]}"
+}
+
+show_flavor() {
+  [ "$FLAVOR" != true ] && return
+  local msg
+  msg=$(pick_flavor "$1")
+  [ -n "$msg" ] && echo -e "  ${DIM}$msg${NC}"
+}
 
 #######################################
 # State Management (JSON)
@@ -274,6 +377,15 @@ load_config() {
         NOTIFICATIONS=true
       fi
     fi
+    # Flavor text config
+    FLAVOR_CFG=$(grep -E '^flavor:' "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | cut -d'#' -f1 | tr -d ' ' || true)
+    if [ "$FLAVOR_CFG" = "true" ] || [ "$FLAVOR_CFG" = "1" ] || [ "$FLAVOR_CFG" = "yes" ]; then
+      FLAVOR=true
+    fi
+  fi
+  # Env var override (SPRINT_FLAVOR=1 always wins)
+  if [ "${SPRINT_FLAVOR:-}" = "1" ] || [ "${SPRINT_FLAVOR:-}" = "true" ]; then
+    FLAVOR=true
   fi
 }
 
@@ -574,7 +686,8 @@ mark_done_in_tasks() {
 
 show_status() {
   init_state
-  
+
+  show_flavor FLAVOR_STATUS
   echo -e "${BOLD}Project:${NC} $PROJECT_NAME"
   echo -e "${BOLD}Default agent:${NC} $DEFAULT_AGENT"
   echo ""
@@ -695,6 +808,7 @@ agent: codex         # Default agent (claude or codex)
 yolo: true           # Skip confirmation prompts
 validate:            # Command to run before marking done (e.g., pnpm test)
 notifications: true  # Desktop notifications on task completion/failure
+flavor: false        # Fun terminal personality (or set SPRINT_FLAVOR=1)
 EOF
     echo -e "${GREEN}Created .agent/config.yml${NC}"
   fi
@@ -751,6 +865,7 @@ EOF
   fi
 
   echo -e "${BLUE}Project initialized for sprint${NC}"
+  show_flavor FLAVOR_INIT
   echo ""
   echo "Sprint commands:"
   echo "  sprint archive    Archive current sprint"
@@ -775,13 +890,15 @@ cmd_run() {
   
   if [ -z "$next_task" ]; then
     echo -e "${GREEN}🎉 All tasks complete (or blocked)!${NC}"
+    show_flavor FLAVOR_ALL_DONE
     show_status
     return 0
   fi
-  
+
   # Parse the task
   parse_task "$next_task"
-  
+
+  show_flavor FLAVOR_RUN_START
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "${BOLD}Task:${NC} $TASK_ID: $TASK_TITLE"
   echo -e "${BOLD}Agent:${NC} $TASK_AGENT"
@@ -842,6 +959,7 @@ cmd_run() {
     echo -e "${BLUE}Running validation:${NC} $VALIDATE_CMD"
     if ! eval "$VALIDATE_CMD"; then
       echo -e "${RED}❌ Validation failed${NC}"
+      show_flavor FLAVOR_ERROR_VALIDATION
       echo -e "${DIM}Fix the issues and run 'sprint done' to complete, or 'sprint skip' to skip.${NC}"
       append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration" "$files_changed"
       return 1
@@ -869,6 +987,7 @@ cmd_run() {
   fi
 
   echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+  show_flavor FLAVOR_TASK_DONE
   notify "$TASK_ID complete"
 
   # Log to CTO task-log if available
@@ -887,16 +1006,18 @@ cmd_done() {
   local in_progress=$(get_in_progress_id)
   if [ -z "$in_progress" ]; then
     echo -e "${YELLOW}No task in progress${NC}"
+    show_flavor FLAVOR_ERROR_NO_TASK
     return 1
   fi
-  
+
   parse_task "$in_progress"
-  
+
   # Run validation if configured
   if [ -n "$VALIDATE_CMD" ]; then
     echo -e "${BLUE}Running validation:${NC} $VALIDATE_CMD"
     if ! eval "$VALIDATE_CMD"; then
       echo -e "${RED}Validation failed. Fix issues before marking done.${NC}"
+      show_flavor FLAVOR_ERROR_VALIDATION
       return 1
     fi
     echo -e "${GREEN}Validation passed${NC}"
@@ -942,6 +1063,7 @@ cmd_done() {
   fi
 
   echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+  show_flavor FLAVOR_TASK_DONE
   notify "$TASK_ID complete"
 
   # Log to CTO task-log if available
@@ -960,6 +1082,7 @@ cmd_skip() {
   local in_progress=$(get_in_progress_id)
   if [ -z "$in_progress" ]; then
     echo -e "${YELLOW}No task in progress to skip${NC}"
+    show_flavor FLAVOR_ERROR_NO_TASK
     return 1
   fi
 
@@ -975,6 +1098,7 @@ cmd_skip() {
   fi
 
   echo -e "${YELLOW}Skipped:${NC} $TASK_ID: $TASK_TITLE"
+  show_flavor FLAVOR_SKIP
   echo "Task is still in TASKS.md, will be picked up again when ready."
   echo ""
   show_status
@@ -1009,6 +1133,7 @@ cmd_retry() {
   local in_progress=$(get_in_progress_id)
   if [ -z "$in_progress" ]; then
     echo -e "${YELLOW}No task in progress to retry${NC}"
+    show_flavor FLAVOR_ERROR_NO_TASK
     echo -e "${DIM}Use 'sprint run' to start a new task.${NC}"
     return 1
   fi
@@ -1016,6 +1141,7 @@ cmd_retry() {
   parse_task "$in_progress"
   append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "skipped" "" "retried"
   echo -e "${CYAN}Retrying:${NC} $TASK_ID: $TASK_TITLE"
+  show_flavor FLAVOR_RETRY
   echo ""
 
   # Clear in-progress so cmd_run picks it up fresh
@@ -1064,6 +1190,7 @@ cmd_commit() {
   if git commit -m "$commit_msg"; then
     local hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
     echo -e "${GREEN}✅ Committed ($hash)${NC}"
+    show_flavor FLAVOR_COMMIT
     echo ""
     git log --oneline -1
   else
@@ -1087,11 +1214,12 @@ cmd_loop() {
   
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "${MAGENTA}🔄 RALPH MODE: Continuous Loop${NC}"
+  show_flavor FLAVOR_LOOP_START
   [ "$max_iterations" -gt 0 ] && echo -e "${DIM}Max iterations: $max_iterations${NC}"
   echo -e "${DIM}Press Ctrl+C to stop${NC}"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
-  
+
   while true; do
     # Check iteration limit
     if [ "$max_iterations" -gt 0 ] && [ "$iteration" -ge "$max_iterations" ]; then
@@ -1120,6 +1248,7 @@ cmd_loop() {
     
     if [ -z "$task_to_run" ]; then
       echo -e "${GREEN}🎉 All tasks complete!${NC}"
+      show_flavor FLAVOR_ALL_DONE
       loop_stop_reason="all tasks complete"
       break
     fi
@@ -1198,6 +1327,7 @@ cmd_loop() {
 
       if [ "$failures" -ge "$max_failures" ]; then
         echo -e "${RED}Too many failures ($failures). Stopping loop.${NC}"
+        show_flavor FLAVOR_ERROR_TOO_MANY
         notify "$TASK_ID failed" "sprint ⚠️"
         echo ""
         echo -e "${CYAN}Next steps:${NC}"
@@ -1219,10 +1349,12 @@ cmd_loop() {
       if ! eval "$VALIDATE_CMD"; then
         failures=$((failures + 1))
         echo -e "${RED}❌ Validation failed${NC}"
+        show_flavor FLAVOR_ERROR_VALIDATION
         tasks_failed=$((tasks_failed + 1))
         append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration" "$files_changed"
         if [ "$failures" -ge "$max_failures" ]; then
           echo -e "${RED}Too many failures. Stopping loop.${NC}"
+          show_flavor FLAVOR_ERROR_TOO_MANY
           notify "$TASK_ID validation failed" "sprint ⚠️"
           loop_stop_reason="validation failure threshold ($failures/$max_failures)"
           break
@@ -1247,13 +1379,14 @@ cmd_loop() {
     append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed" "" "$duration" "$files_changed"
 
     echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+    show_flavor FLAVOR_TASK_DONE
     notify "$TASK_ID complete"
 
     # Log to CTO task-log if available
     if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
       "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "sprint,$TASK_AGENT" "$commit_hash" 2>/dev/null
     fi
-    
+
     # Optional: push after each iteration
     if [ "$push_after" = "true" ] || [ "$push_after" = "--push" ]; then
       echo -e "${DIM}Pushing...${NC}"
@@ -1271,6 +1404,7 @@ cmd_loop() {
   echo ""
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "${MAGENTA}Loop finished after $iteration iterations${NC}"
+  show_flavor FLAVOR_LOOP_END
   [ -n "$loop_duration_str" ] && echo -e "${DIM}Duration: $loop_duration_str | Completed: $tasks_completed | Failed: $tasks_failed${NC}"
   [ -n "$loop_stop_reason" ] && echo -e "${DIM}Reason: $loop_stop_reason${NC}"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -1301,7 +1435,9 @@ Reason: $loop_stop_reason
 
 cmd_preview() {
   init_state
-  
+
+  show_flavor FLAVOR_PREVIEW
+
   # Check for in-progress task
   local in_progress=$(get_in_progress_id)
   if [ -n "$in_progress" ]; then
@@ -1312,6 +1448,7 @@ cmd_preview() {
     local next_task=$(find_next_task)
     if [ -z "$next_task" ]; then
       echo -e "${GREEN}Nothing to do — all tasks complete (or blocked)${NC}"
+      show_flavor FLAVOR_ALL_DONE
       return 0
     fi
     parse_task "$next_task"

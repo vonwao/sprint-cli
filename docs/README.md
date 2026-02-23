@@ -1,18 +1,21 @@
 # sprint
 
-> Task queue runner for AI coding agents
+> Short loops. Real progress.
 
-**Define tasks. Assign agents. Run the queue.**
+**Define tasks. Assign agents. Ship in loops.**
 
 ## What is sprint?
 
-**sprint** is a minimal task queue system designed for AI coding agents like Codex and Claude Code. Define your tasks in markdown, specify which agent should handle each one, and let the queue runner do the rest.
+**sprint** is a task queue runner for AI coding agents. Define tasks in markdown, assign them to agents like Codex or Claude Code, and run them in short, repeatable loops. No server, no UI — just files and git.
+
+Not a project manager. Not a Jira replacement. Sprint is the loop that sits between your plan and your agents.
 
 ## Features
 
 - **Explicit Task Queue** — Define tasks with clear IDs, dependencies, and expected artifacts
 - **Multi-Agent Support** — Assign tasks to `@codex` or `@claude` based on their strengths
-- **Loop Mode (Ralph-style)** — Run tasks continuously with `sprint loop`
+- **Loop Mode** — Run tasks continuously with `sprint loop`
+- **Sprint Lifecycle** — Archive completed sprints, start new ones
 - **Git-Native** — State lives in files and git history
 
 ## Quick Example

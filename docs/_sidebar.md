@@ -11,6 +11,7 @@
 
 * **Commands**
   * [sprint run](commands/run.md)
+  * [sprint add](commands/add.md)
   * [sprint loop](commands/loop.md)
   * [sprint preview](commands/preview.md)
   * [sprint done](commands/done.md)
@@ -22,11 +23,14 @@
   * [sprint list](commands/list.md)
   * [sprint log](commands/log.md)
   * [sprint reset](commands/reset.md)
+  * [sprint archive](commands/archive.md)
+  * [sprint new](commands/new.md)
 
 * **Configuration**
   * [Config File](configuration/config-file.md)
   * [AGENT.md](configuration/agent-md.md)
   * [Guardrails](configuration/guardrails.md)
+  * [Personality](personality.md)
 
 * **Case Studies**
   * [Dogfooding](case-studies/dogfooding.md)

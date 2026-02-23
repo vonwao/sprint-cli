@@ -2,7 +2,7 @@
 
 Run tasks continuously until the queue is empty.
 
-Inspired by the [Ralph Wiggum pattern](https://ghuntley.com/ralph/).
+Inspired by the [Ralph pattern](https://ghuntley.com/ralph/).
 
 ## Usage
 
@@ -24,7 +24,7 @@ while tasks_remaining:
 
 ## Failure Handling
 
-If a task fails 3 times in a row, the loop stops:
+If a task fails 3 times in a row, the loop stops. The failure counter resets to zero after each successful task, so occasional failures won't halt the loop:
 
 ```
 ⚠️  Task may have failed (exit: 1, no commit)
