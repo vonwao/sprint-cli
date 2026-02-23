@@ -19,3 +19,10 @@ Completion history for next-task
 - **T12**: Auto-commit tracking files after each task ✅ `cd8d4c5` @ 2026-02-20
 - **T13**: sprint-done sweeps uncommitted tracking files ✅ `1ee94b1` @ 2026-02-20
 - **T11**: Update next init for sprint support ✅ `6779763` @ 2026-02-20
+
+## 2026-02-22
+- **T14**: Replace CLAUDE.md symlink with --append-system-prompt ✅ `b596312` @ 2026-02-22 21:18
+- **T15**: Add .gitignore with sensible defaults ✅ `5574850` @ 2026-02-22 21:19
+- **T16**: Add duration tracking to progress blocks ✅ `0299197` @ 2026-02-22 21:21
+- **T17**: Add files-changed count to progress blocks ✅ `1f1f1fb` @ 2026-02-22 21:23
+- **T18**: Explicit stop reasons in loop mode ✅ `c4f8952` @ 2026-02-22 21:25

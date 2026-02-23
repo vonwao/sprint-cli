@@ -47,3 +47,33 @@ Result: completed
 Agent: codex | Validate: skipped | Commit: 6779763
 Result: completed
 ---
+
+---
+**[T14]** Replace CLAUDE.md symlink with --append-system-prompt — 2026-02-22 21:18
+Agent: claude | Validate: skipped | Commit: b596312
+Result: completed
+---
+
+---
+**[T15]** Add .gitignore with sensible defaults — 2026-02-22 21:19
+Agent: claude | Validate: skipped | Commit: 5574850
+Result: completed
+---
+
+---
+**[T16]** Add duration tracking to progress blocks — 2026-02-22 21:21
+Agent: claude | Validate: skipped | Commit: 0299197
+Result: completed
+---
+
+---
+**[T17]** Add files-changed count to progress blocks — 2026-02-22 21:23
+Agent: claude | Validate: skipped | Commit: 1f1f1fb
+Result: completed
+---
+
+---
+**[T18]** Explicit stop reasons in loop mode — 2026-02-22 21:25
+Agent: claude | Validate: skipped | Commit: c4f8952
+Result: completed
+---
